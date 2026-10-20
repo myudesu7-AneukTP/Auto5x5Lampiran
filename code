@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Lampiran Foto 5x5 cm</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- JSZip CDN for Batch ZIP Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* Ruler guide styling around the 5x5 preview box */
+        .ruler-top {
+            background-image: repeating-linear-gradient(to right, #94a3b8 0, #94a3b8 1px, transparent 1px, transparent 10%);
+        }
+        .ruler-left {
+            background-image: repeating-linear-gradient(to bottom, #94a3b8 0, #94a3b8 1px, transparent 1px, transparent 10%);
+        }
+
+        /* Drag and drop active state */
+        .drop-active {
+            border-color: #2563eb !important;
+            background-color: #eff6ff !important;
+            transform: scale(1.01);
+        }
+
+        /* Canvas cursor for panning */
+        .canvas-draggable {
+            cursor: grab;
+            touch-action: none;
+        }
+        .canvas-draggable:active {
+            cursor: grabbing;
+        }
+
+        /* Print Layout Styling (Exact 5cm x 5cm on A4 Paper) */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printArea, #printArea * {
+                visibility: visible;
+            }
+            #printArea {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white;
+                padding: 0;
+                margin: 0;
+            }
+            .print-photo-box {
+                width: 5cm !important;
+                height: 5cm !important;
+                min-width: 5cm !important;
+                min-height: 5cm !important;
+                max-width: 5cm !important;
+                max-height: 5cm !important;
+                object-fit: contain;
+                page-break-inside: avoid;
+            }
+            .print-card {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 1.5cm;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-200">
+                    <i data-lucide="scan-line" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Generator Lampiran Foto 5×5 cm</h1>
+                        <span class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            Presisi 50×50 mm
+                        </span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-slate-500">Ubah banyak foto dokumentasi & lampiran menjadi ukuran 5 × 5 cm sekaligus</p>
+                </div>
+            </div>
+
+            <!-- Action & Status Right Header -->
+            <div class="flex items-center gap-2.5 flex-wrap">
+                <div id="photoCountBadge" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium">
+                    <i data-lucide="images" class="w-4 h-4 text-blue-600"></i>
+                    <span><strong id="totalPhotosText">0</strong> Foto Terpilih</span>
+                </div>
+
+                <!-- Primary Open File Button in Header -->
+                <button onclick="triggerFileInput()" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm shadow-sm transition-all cursor-pointer">
+                    <i data-lucide="folder-open" class="w-4 h-4"></i>
+                    <span>Open File / Tambah Foto</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hidden Multiple File Input -->
+    <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/webp,image/bmp" class="hidden" onchange="handleFileSelect(event)">
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- 1. OPEN FILE & DRAG-DROP HERO AREA -->
+        <section id="dropZone" 
+            class="bg-white border-2 border-dashed border-blue-300 rounded-2xl p-6 sm:p-8 text-center transition-all duration-200 hover:border-blue-500 hover:bg-blue-50/30 shadow-sm">
+            <div class="max-w-xl mx-auto flex flex-col items-center">
+                <div class="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center mb-4 shadow-inner">
+                    <i data-lucide="image-plus" class="w-8 h-8"></i>
+                </div>
+                <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">
+                    Pilih Banyak Gambar Sekaligus untuk Lampiran
+                </h2>
+                <p class="text-sm text-slate-500 mb-5">
+                    Klik tombol <strong>Open File</strong> di bawah atau seret & lepas (<em>drag & drop</em>) banyak foto dokumentasi Anda ke kotak ini. Semua foto otomatis diubah menjadi ukuran <strong>5 × 5 cm</strong>.
+                </p>
+
+                <div class="flex flex-wrap items-center justify-center gap-3">
+                    <button onclick="triggerFileInput()" class="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm sm:text-base shadow-md shadow-blue-200 hover:shadow-lg transition-all">
+                        <i data-lucide="folder-open" class="w-5 h-5"></i>
+                        <span>Open File (Pilih Banyak Foto)</span>
+                    </button>
+
+                    <button onclick="loadSamplePhotos()" class="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition-all">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+                        <span>Coba Contoh 4 Foto</span>
+                    </button>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400">
+                    <span class="inline-flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i> Mendukung JPG, PNG, WEBP</span>
+                    <span class="inline-flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i> Proses 100% Cepat di Browser</span>
+                    <span class="inline-flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i> Metadata Presisi 5×5 cm</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. PENGATURAN UKURAN 5x5 CM & BATCH TOOLS -->
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-5 h-5 text-blue-600"></i>
+                    <h3 class="font-bold text-slate-800 text-base">Pengaturan Ukuran 5 × 5 cm & Tata Letak</h3>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <i data-lucide="ruler" class="w-4 h-4 text-blue-600"></i>
+                    <span>Target Fisik: <strong>5.0 cm × 5.0 cm</strong> (<span id="pixelSizeIndicator">591 × 591 px</span>)</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <!-- Setting 1: DPI / Resolusi -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                        Resolusi Cetak (DPI)
+                    </label>
+                    <select id="dpiSelect" onchange="updateGlobalSettings()" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="300" selected>300 DPI — Cetak Tinggi (591×591 px)</option>
+                        <option value="150">150 DPI — Standar Word (295×295 px)</option>
+                        <option value="96">96 DPI — Ukuran Layar (189×189 px)</option>
+                    </select>
+                </div>
+
+                <!-- Setting 2: Mode Penyesuaian Rasio (Fit Mode) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                        Mode Penyesuaian Foto
+                    </label>
+                    <select id="fitModeSelect" onchange="applyGlobalFitMode()" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="cover" selected>Crop Tengah (Penuh 5×5 Proporsional)</option>
+                        <option value="contain">Fit / Utuh (Tampil Seluruh Foto)</option>
+                        <option value="stretch">Stretch (Tarik Penuh ke 5×5 cm)</option>
+                    </select>
+                </div>
+
+                <!-- Setting 3: Garis Tepi / Border -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                        Garis Tepi (Border Foto)
+                    </label>
+                    <select id="borderSelect" onchange="updateGlobalSettings()" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="none">Tanpa Garis Tepi</option>
+                        <option value="thin-black" selected>Garis Hitam Tipis (Rapi Lampiran)</option>
+                        <option value="gray">Garis Abu-abu Halus</option>
+                        <option value="frame">Bingkai Putih + Garis Hitam</option>
+                    </select>
+                </div>
+
+                <!-- Setting 4: Format File & Kolom Lampiran -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                        Format File Gambar
+                    </label>
+                    <select id="formatSelect" onchange="updateGlobalSettings()" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="image/jpeg" selected>JPG (Ukuran File Ringan)</option>
+                        <option value="image/png">PNG (Kualitas Tanpa Kompresi)</option>
+                    </select>
+                </div>
+
+                <!-- Setting 5: Kolom Tabel Word/Cetak -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+                        Kolom Tabel Lampiran Word
+                    </label>
+                    <select id="wordColumnsSelect" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="3" selected>3 Foto per Baris (Hemat Halaman)</option>
+                        <option value="2">2 Foto per Baris (Standar Laporan)</option>
+                        <option value="1">1 Foto + Keterangan di Samping</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Quick Helper Toolbar -->
+            <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="autoFillCaptions()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition">
+                        <i data-lucide="list-ordered" class="w-3.5 h-3.5 text-blue-600"></i>
+                        <span>Nomor Otomatis ("Gambar 1, 2...")</span>
+                    </button>
+                    <button onclick="resetAllAdjustments()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-600"></i>
+                        <span>Reset Posisi & Zoom</span>
+                    </button>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium cursor-pointer select-none">
+                        <input type="checkbox" id="burnCaptionCheck" onchange="updateGlobalSettings()" class="rounded text-blue-600 focus:ring-blue-500">
+                        <span>Tulis Keterangan di Dalam Foto</span>
+                    </label>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="clearAllPhotos()" id="clearAllBtn" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Hapus Semua Foto</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. BATCH EXPORT BAR (SHOWN WHEN PHOTOS EXIST) -->
+        <section id="exportActionBar" class="hidden bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-4 sm:p-5 text-white shadow-lg">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div class="flex items-start sm:items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                        <i data-lucide="check-check" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base sm:text-lg">Siap Diunduh dalam Ukuran 5 × 5 cm!</h3>
+                        <p class="text-xs sm:text-sm text-blue-100">
+                            Pilih unduh semua file foto sekaligus (.ZIP), langsung berbentuk Tabel Lampiran Microsoft Word (.doc), atau Cetak PDF A4.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <!-- Download ZIP -->
+                    <button onclick="downloadAllAsZip()" id="btnDownloadZip" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-bold text-sm shadow-sm transition">
+                        <i data-lucide="folder-archive" class="w-4 h-4"></i>
+                        <span>Unduh Semua Foto (.ZIP)</span>
+                    </button>
+
+                    <!-- Download Word Doc Table -->
+                    <button onclick="downloadWordLampiran()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm shadow-sm transition">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                        <span>Unduh Lampiran Word (.doc)</span>
+                    </button>
+
+                    <!-- Print / Save PDF A4 -->
+                    <button onclick="printLampiranA4()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-sm border border-white/25 transition">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>Cetak / PDF A4</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. GRID DAFTAR FOTO LAMPIRAN 5x5 CM -->
+        <section>
+            <!-- Empty State -->
+            <div id="emptyState" class="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400">
+                <i data-lucide="layout-grid" class="w-12 h-12 mx-auto mb-3 stroke-1 text-slate-300"></i>
+                <p class="font-semibold text-slate-600">Belum ada foto yang dipilih</p>
+                <p class="text-xs sm:text-sm mt-1">Silakan klik tombol <strong>Open File (Pilih Banyak Foto)</strong> di atas untuk memuat foto lampiran Anda.</p>
+            </div>
+
+            <!-- Photo Grid Container -->
+            <div id="photoGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                <!-- Cards dynamically rendered here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- AREA CETAK A4 (Hanya tampil saat Cetak / Print PDF) -->
+    <div id="printArea" class="hidden">
+        <div class="text-center mb-6">
+            <h2 class="text-lg font-bold uppercase tracking-wide">LAMPIRAN DOKUMENTASI FOTO (5 × 5 CM)</h2>
+        </div>
+        <div id="printGridContainer" class="flex flex-wrap gap-4 justify-center"></div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toastBox" class="fixed bottom-5 right-5 z-50 hidden transform transition-all duration-300">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+            <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+            <span id="toastMessage">Berhasil diproses!</span>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+            <span>Generator Lampiran Foto 5×5 cm — Presisi Ukuran Cetak & Dokumen</span>
+            <span>Tips: Geser langsung pada pratinjau foto untuk mengatur posisi objek</span>
+        </div>
+    </footer>
+
+    <!-- Application Script -->
+    <script>
+        // ==========================================
+        // STATE MANAGEMENT
+        // ==========================================
+        let photos = []; // Array of photo objects
+        let nextId = 1;
+
+        // Physical target: 5 cm = 5 / 2.54 inches = 1.968503937 inches
+        const CM_SIZE = 5;
+        const INCH_SIZE = CM_SIZE / 2.54;
+
+        // Calculate exact pixel dimension for 5 cm based on selected DPI
+        function getTargetPixels() {
+            const dpi = parseInt(document.getElementById('dpiSelect').value, 10) || 300;
+            return Math.round(INCH_SIZE * dpi); // 300 DPI -> 591px, 150 DPI -> 295px, 96 DPI -> 189px
+        }
+
+        function getSelectedDpi() {
+            return parseInt(document.getElementById('dpiSelect').value, 10) || 300;
+        }
+
+        // Initialize Lucide Icons & Drag-Drop Listeners
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            setupDragAndDrop();
+            updatePixelIndicator();
+        });
+
+        // ==========================================
+        // DRAG & DROP AND FILE INPUT HANDLERS
+        // ==========================================
+        function triggerFileInput() {
+            const input = document.getElementById('fileInput');
+            input.value = ''; // Allow re-selecting same files
+            input.click();
+        }
+
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('dropZone');
+
+            ['dragenter', 'dragover'].forEach(evtName => {
+                dropZone.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.add('drop-active');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(evtName => {
+                dropZone.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.remove('drop-active');
+                });
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    processFiles(files);
+                }
+            });
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (files && files.length > 0) {
+                processFiles(files);
+            }
+        }
+
+        function processFiles(fileList) {
+            const validFiles = Array.from(fileList).filter(file => file.type.startsWith('image/'));
+            if (validFiles.length === 0) {
+                showToast('Harap pilih file gambar (JPG, PNG, WEBP).');
+                return;
+            }
+
+            const defaultFit = document.getElementById('fitModeSelect').value;
+            let loadedCount = 0;
+
+            validFiles.forEach((file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const indexNumber = photos.length + 1;
+                        const cleanName = file.name.replace(/\.[^/.]+$/, "");
+                        photos.push({
+                            id: nextId++,
+                            name: cleanName,
+                            caption: `Gambar ${indexNumber}. ${cleanName}`,
+                            imgElement: img,
+                            origWidth: img.naturalWidth,
+                            origHeight: img.naturalHeight,
+                            fitMode: defaultFit,
+                            rotation: 0, // 0, 90, 180, 270
+                            zoom: 1,     // 1.0 to 3.0
+                            panX: 0,     // -1 to 1 normalized offset
+                            panY: 0
+                        });
+
+                        loadedCount++;
+                        if (loadedCount === validFiles.length) {
+                            renderPhotoGrid();
+                            showToast(`${validFiles.length} foto berhasil dimuat & disesuaikan ke 5×5 cm`);
+                        }
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ==========================================
+        // SAMPLE PHOTOS GENERATOR (FOR INSTANT DEMO)
+        // ==========================================
+        function loadSamplePhotos() {
+            const sampleConfigs = [
+                { title: "Dokumentasi Survei Lokasi", bg1: "#1e3a8a", bg2: "#3b82f6", icon: "📍", w: 1200, h: 800 },
+                { title: "Pemeriksaan Alat Utama", bg1: "#065f46", bg2: "#10b981", icon: "⚙️", w: 800, h: 1200 },
+                { title: "Pengukuran Sampel Lapangan", bg1: "#7c2d12", bg2: "#f97316", icon: "📐", w: 1280, h: 720 },
+                { title: "Penyerahan Berita Acara", bg1: "#4c1d95", bg2: "#8b5cf6", icon: "📋", w: 1000, h: 750 }
+            ];
+
+            const defaultFit = document.getElementById('fitModeSelect').value;
+            let loaded = 0;
+
+            sampleConfigs.forEach((cfg) => {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = cfg.w;
+                tempCanvas.height = cfg.h;
+                const ctx = tempCanvas.getContext('2d');
+
+                // Gradient background
+                const grad = ctx.createLinearGradient(0, 0, cfg.w, cfg.h);
+                grad.addColorStop(0, cfg.bg1);
+                grad.addColorStop(1, cfg.bg2);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, cfg.w, cfg.h);
+
+                // Decorative grid pattern
+                ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                ctx.lineWidth = 2;
+                for (let x = 0; x < cfg.w; x += 80) {
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cfg.h); ctx.stroke();
+                }
+                for (let y = 0; y < cfg.h; y += 80) {
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cfg.w, y); ctx.stroke();
+                }
+
+                // Center Circle & Text
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.beginPath();
+                ctx.arc(cfg.w / 2, cfg.h / 2 - 40, 110, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.font = '90px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(cfg.icon, cfg.w / 2, cfg.h / 2 - 40);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 44px Inter, sans-serif';
+                ctx.fillText(cfg.title, cfg.w / 2, cfg.h / 2 + 120);
+
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.font = '28px Inter, sans-serif';
+                ctx.fillText(`Resolusi Asli: ${cfg.w} × ${cfg.h} px`, cfg.w / 2, cfg.h / 2 + 175);
+
+                const img = new Image();
+                img.onload = () => {
+                    const idx = photos.length + 1;
+                    photos.push({
+                        id: nextId++,
+                        name: cfg.title,
+                        caption: `Gambar ${idx}. ${cfg.title}`,
+                        imgElement: img,
+                        origWidth: cfg.w,
+                        origHeight: cfg.h,
+                        fitMode: defaultFit,
+                        rotation: 0,
+                        zoom: 1,
+                        panX: 0,
+                        panY: 0
+                    });
+                    loaded++;
+                    if (loaded === sampleConfigs.length) {
+                        renderPhotoGrid();
+                        showToast('4 contoh foto lampiran berhasil dimuat!');
+                    }
+                };
+                img.src = tempCanvas.toDataURL('image/jpeg', 0.92);
+            });
+        }
+
+        // ==========================================
+        // RENDER & CANVAS 5x5 CM DRAWING ENGINE
+        // ==========================================
+        function updatePixelIndicator() {
+            const px = getTargetPixels();
+            document.getElementById('pixelSizeIndicator').textContent = `${px} × ${px} px`;
+        }
+
+        function updateGlobalSettings() {
+            updatePixelIndicator();
+            photos.forEach(photo => drawPhotoOnCanvas(photo));
+        }
+
+        function applyGlobalFitMode() {
+            const mode = document.getElementById('fitModeSelect').value;
+            photos.forEach(p => {
+                p.fitMode = mode;
+                p.panX = 0;
+                p.panY = 0;
+                p.zoom = 1;
+            });
+            renderPhotoGrid();
+            showToast('Mode penyesuaian rasio diterapkan ke semua foto');
+        }
+
+        // Core renderer that draws a photo onto a target square canvas (5x5 cm proportion)
+        function renderPhotoToSquareCanvas(photo, canvas) {
+            const size = getTargetPixels();
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // 1. Fill clean white background (essential for JPG & Fit mode)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+
+            const borderType = document.getElementById('borderSelect').value;
+            const pad = (borderType === 'frame') ? Math.round(size * 0.035) : 0;
+            const drawArea = size - pad * 2;
+
+            ctx.save();
+            // Clip to inner draw area
+            ctx.beginPath();
+            ctx.rect(pad, pad, drawArea, drawArea);
+            ctx.clip();
+
+            // Move origin to center of canvas for rotation & scaling
+            ctx.translate(size / 2, size / 2);
+            ctx.rotate((photo.rotation * Math.PI) / 180);
+
+            const isRotated90 = (photo.rotation % 180 !== 0);
+            const srcW = isRotated90 ? photo.origHeight : photo.origWidth;
+            const srcH = isRotated90 ? photo.origWidth : photo.origHeight;
+
+            let drawW, drawH;
+
+            if (photo.fitMode === 'stretch') {
+                drawW = drawArea * photo.zoom;
+                drawH = drawArea * photo.zoom;
+            } else if (photo.fitMode === 'contain') {
+                const scale = Math.min(drawArea / srcW, drawArea / srcH) * photo.zoom;
+                drawW = srcW * scale;
+                drawH = srcH * scale;
+            } else {
+                // Default 'cover' (Crop Tengah 5x5 cm)
+                const scale = Math.max(drawArea / srcW, drawArea / srcH) * photo.zoom;
+                drawW = srcW * scale;
+                drawH = srcH * scale;
+            }
+
+            // Calculate pan offset in rotated space
+            const maxOffsetX = Math.max(0, (drawW - drawArea) / 2);
+            const maxOffsetY = Math.max(0, (drawH - drawArea) / 2);
+            const offsetX = photo.panX * maxOffsetX;
+            const offsetY = photo.panY * maxOffsetY;
+
+            // Un-rotate offset so dragging matches screen direction
+            const rad = (-photo.rotation * Math.PI) / 180;
+            const rotOffsetX = offsetX * Math.cos(rad) - offsetY * Math.sin(rad);
+            const rotOffsetY = offsetX * Math.sin(rad) + offsetY * Math.cos(rad);
+
+            const imgDrawW = isRotated90 ? drawH : drawW;
+            const imgDrawH = isRotated90 ? drawW : drawH;
+
+            ctx.drawImage(
+                photo.imgElement,
+                -imgDrawW / 2 + rotOffsetX,
+                -imgDrawH / 2 + rotOffsetY,
+                imgDrawW,
+                imgDrawH
+            );
+
+            ctx.restore();
+
+            // Optional: Burn Caption inside bottom of photo if checked
+            const burnCaption = document.getElementById('burnCaptionCheck').checked;
+            if (burnCaption && photo.caption.trim() !== '') {
+                const barH = Math.max(24, Math.round(size * 0.11));
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+                ctx.fillRect(pad, size - pad - barH, drawArea, barH);
+
+                ctx.fillStyle = '#ffffff';
+                const fontSize = Math.max(10, Math.round(size * 0.036));
+                ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(photo.caption.trim(), size / 2, size - pad - barH / 2, drawArea - 16);
+            }
+
+            // Draw Border if selected
+            if (borderType === 'thin-black') {
+                const bw = Math.max(2, Math.round(size * 0.005));
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = bw;
+                ctx.strokeRect(bw / 2, bw / 2, size - bw, size - bw);
+            } else if (borderType === 'gray') {
+                const bw = Math.max(2, Math.round(size * 0.005));
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = bw;
+                ctx.strokeRect(bw / 2, bw / 2, size - bw, size - bw);
+            } else if (borderType === 'frame') {
+                const bw = Math.max(2, Math.round(size * 0.005));
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = bw;
+                ctx.strokeRect(bw / 2, bw / 2, size - bw, size - bw);
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = Math.max(1, Math.round(size * 0.003));
+                ctx.strokeRect(pad, pad, drawArea, drawArea);
+            }
+        }
+
+        function drawPhotoOnCanvas(photo) {
+            const canvas = document.getElementById(`canvas-${photo.id}`);
+            if (!canvas) return;
+            renderPhotoToSquareCanvas(photo, canvas);
+        }
+
+        // ==========================================
+        // BUILD PHOTO CARDS UI
+        // ==========================================
+        function renderPhotoGrid() {
+            const grid = document.getElementById('photoGrid');
+            const emptyState = document.getElementById('emptyState');
+            const exportBar = document.getElementById('exportActionBar');
+            const clearAllBtn = document.getElementById('clearAllBtn');
+            const totalText = document.getElementById('totalPhotosText');
+
+            totalText.textContent = photos.length;
+
+            if (photos.length === 0) {
+                grid.classList.add('hidden');
+                exportBar.classList.add('hidden');
+                clearAllBtn.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                grid.innerHTML = '';
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.classList.remove('hidden');
+            exportBar.classList.remove('hidden');
+            clearAllBtn.classList.remove('hidden');
+
+            grid.innerHTML = '';
+
+            photos.forEach((photo, idx) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col';
+
+                card.innerHTML = `
+                    <!-- Card Top Bar -->
+                    <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                                ${idx + 1}
+                            </span>
+                            <span class="text-xs font-semibold text-slate-700 truncate" title="${escapeHtml(photo.name)}">
+                                ${escapeHtml(photo.name)}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                5 × 5 cm
+                            </span>
+                            <button onclick="removePhoto(${photo.id})" class="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Hapus foto ini">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 5x5 cm Visual Ruler + Interactive Canvas Preview -->
+                    <div class="p-4 bg-slate-100/70 flex flex-col items-center justify-center relative">
+                        <!-- Top 5 cm indicator -->
+                        <div class="w-full max-w-[210px] flex items-center justify-between text-[10px] font-semibold text-slate-500 mb-1 px-1">
+                            <span>0 cm</span>
+                            <span class="text-blue-600 font-bold">← 5.0 cm →</span>
+                            <span>5 cm</span>
+                        </div>
+
+                        <div class="relative flex items-center">
+                            <!-- Left 5 cm vertical label -->
+                            <div class=" -left-6 text-[10px] font-bold text-blue-600 -rotate-90 select-none whitespace-nowrap hidden sm:block">
+                                5.0 cm
+                            </div>
+
+                            <!-- 1:1 Square Wrapper -->
+                            <div class="w-[200px] h-[200px] sm:w-[210px] sm:h-[210px] bg-white shadow-sm rounded-lg overflow-hidden border border-slate-300 relative group">
+                                <canvas id="canvas-${photo.id}" class="w-full h-full block canvas-draggable" title="Geser untuk mengatur posisi pemotongan foto"></canvas>
+                                <div class="pointer-events-none absolute bottom-1.5 right-1.5 bg-slate-900/65 text-white text-[10px] px-2 py-0.5 rounded backdrop-blur-sm opacity-80 group-hover:opacity-100 transition">
+                                    Geser Posisi
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-2 text-[11px] text-slate-400">
+                            Asli: ${photo.origWidth}×${photo.origHeight}px → Output: <strong>5×5 cm</strong>
+                        </div>
+                    </div>
+
+                    <!-- Per-Photo Controls -->
+                    <div class="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                        <div class="space-y-2.5">
+                            <!-- Caption Input -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Keterangan Lampiran:</label>
+                                <input type="text" 
+                                    value="${escapeHtml(photo.caption)}" 
+                                    oninput="updatePhotoCaption(${photo.id}, this.value)"
+                                    placeholder="Contoh: Gambar 1. Tampak Depan..."
+                                    class="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+
+                            <!-- Fit Mode & Rotate Row -->
+                            <div class="flex items-center gap-2">
+                                <select onchange="updatePhotoFitMode(${photo.id}, this.value)" class="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-medium text-slate-700">
+                                    <option value="cover" ${photo.fitMode === 'cover' ? 'selected' : ''}>Crop Penuh 5×5</option>
+                                    <option value="contain" ${photo.fitMode === 'contain' ? 'selected' : ''}>Utuh (Fit)</option>
+                                    <option value="stretch" ${photo.fitMode === 'stretch' ? 'selected' : ''}>Stretch Penuh</option>
+                                </select>
+
+                                <button onclick="rotatePhoto(${photo.id}, -90)" class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition" title="Putar Kiri 90°">
+                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="rotatePhoto(${photo.id}, 90)" class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition" title="Putar Kanan 90°">
+                                    <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <!-- Zoom Slider -->
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                                <input type="range" min="1" max="2.5" step="0.05" value="${photo.zoom}" 
+                                    oninput="updatePhotoZoom(${photo.id}, this.value)"
+                                    class="w-full accent-blue-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer">
+                                <span id="zoom-val-${photo.id}" class="text-[11px] font-semibold text-slate-500 w-9 text-right">${Math.round(photo.zoom * 100)}%</span>
+                            </div>
+                        </div>
+
+                        <!-- Individual Download Button -->
+                        <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                            <button onclick="downloadSinglePhoto(${photo.id})" class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs transition">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                                <span>Unduh Foto 5×5 cm</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+
+                // Draw & attach interactive pan events
+                drawPhotoOnCanvas(photo);
+                attachCanvasPanListeners(photo);
+            });
+
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // INTERACTIVE PAN / DRAG ON CANVAS
+        // ==========================================
+        function attachCanvasPanListeners(photo) {
+            const canvas = document.getElementById(`canvas-${photo.id}`);
+            if (!canvas) return;
+
+            let isDragging = false;
+            let startX = 0;
+            let startY = 0;
+            let initialPanX = 0;
+            let initialPanY = 0;
+
+            const onPointerDown = (clientX, clientY) => {
+                isDragging = true;
+                startX = clientX;
+                startY = clientY;
+                initialPanX = photo.panX;
+                initialPanY = photo.panY;
+            };
+
+            const onPointerMove = (clientX, clientY) => {
+                if (!isDragging) return;
+                const rect = canvas.getBoundingClientRect();
+                const dx = (clientX - startX) / (rect.width * 0.5);
+                const dy = (clientY - startY) / (rect.height * 0.5);
+
+                photo.panX = Math.max(-1, Math.min(1, initialPanX + dx));
+                photo.panY = Math.max(-1, Math.min(1, initialPanY + dy));
+                drawPhotoOnCanvas(photo);
+            };
+
+            const onPointerUp = () => {
+                isDragging = false;
+            };
+
+            // Mouse events
+            canvas.addEventListener('mousedown', (e) => onPointerDown(e.clientX, e.clientY));
+            window.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY));
+            window.addEventListener('mouseup', onPointerUp);
+
+            // Touch events
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: true });
+
+            canvas.addEventListener('touchmove', (e) => {
+                if (isDragging && e.touches.length === 1) {
+                    e.preventDefault();
+                    onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', onPointerUp);
+        }
+
+        // ==========================================
+        // INDIVIDUAL PHOTO ACTIONS
+        // ==========================================
+        function updatePhotoCaption(id, value) {
+            const photo = photos.find(p => p.id === id);
+            if (!photo) return;
+            photo.caption = value;
+            if (document.getElementById('burnCaptionCheck').checked) {
+                drawPhotoOnCanvas(photo);
+            }
+        }
+
+        function updatePhotoFitMode(id, mode) {
+            const photo = photos.find(p => p.id === id);
+            if (!photo) return;
+            photo.fitMode = mode;
+            photo.panX = 0;
+            photo.panY = 0;
+            drawPhotoOnCanvas(photo);
+        }
+
+        function rotatePhoto(id, deltaDeg) {
+            const photo = photos.find(p => p.id === id);
+            if (!photo) return;
+            photo.rotation = (photo.rotation + deltaDeg + 360) % 360;
+            drawPhotoOnCanvas(photo);
+        }
+
+        function updatePhotoZoom(id, val) {
+            const photo = photos.find(p => p.id === id);
+            if (!photo) return;
+            photo.zoom = parseFloat(val) || 1;
+            const label = document.getElementById(`zoom-val-${id}`);
+            if (label) label.textContent = `${Math.round(photo.zoom * 100)}%`;
+            drawPhotoOnCanvas(photo);
+        }
+
+        function removePhoto(id) {
+            photos = photos.filter(p => p.id !== id);
+            renderPhotoGrid();
+            showToast('Foto dihapus dari daftar lampiran');
+        }
+
+        function clearAllPhotos() {
+            photos = [];
+            renderPhotoGrid();
+            showToast('Semua foto telah dibersihkan');
+        }
+
+        function autoFillCaptions() {
+            if (photos.length === 0) {
+                showToast('Tambahkan foto terlebih dahulu');
+                return;
+            }
+            photos.forEach((p, idx) => {
+                p.caption = `Gambar ${idx + 1}. ${p.name}`;
+            });
+            renderPhotoGrid();
+            showToast('Nomor keterangan otomatis diperbarui!');
+        }
+
+        function resetAllAdjustments() {
+            photos.forEach(p => {
+                p.rotation = 0;
+                p.zoom = 1;
+                p.panX = 0;
+                p.panY = 0;
+            });
+            renderPhotoGrid();
+            showToast('Posisi, rotasi, dan zoom direset ke awal');
+        }
+
+        // ==========================================
+        // EMBED EXACT DPI HEADER IN JPEG / PNG
+        // (Ensures MS Word / Photoshop reads exact 5x5 cm size!)
+        // ==========================================
+        function setDpiInDataUrl(dataUrl, dpi) {
+            if (dataUrl.startsWith('data:image/jpeg')) {
+                // Modify JFIF header density bytes so apps recognize exact physical 5x5 cm
+                const base64 = dataUrl.split(',')[1];
+                const raw = atob(base64);
+                const bytes = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++) {
+                    bytes[i] = raw.charCodeAt(i);
+                }
+                // Check JFIF marker at offset 2..17
+                if (bytes[2] === 0xFF && bytes[3] === 0xE0 && bytes[6] === 0x4A && bytes[7] === 0x46) {
+                    bytes[13] = 1; // 1 = dots per inch
+                    bytes[14] = (dpi >> 8) & 0xFF;
+                    bytes[15] = dpi & 0xFF;
+                    bytes[16] = (dpi >> 8) & 0xFF;
+                    bytes[17] = dpi & 0xFF;
+                }
+                let binary = '';
+                for (let i = 0; i < bytes.length; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return 'data:image/jpeg;base64,' + btoa(binary);
+            }
+            return dataUrl;
+        }
+
+        function getFormattedPhotoDataUrl(photo) {
+            const canvas = document.getElementById(`canvas-${photo.id}`) || document.createElement('canvas');
+            renderPhotoToSquareCanvas(photo, canvas);
+            const mime = document.getElementById('formatSelect').value;
+            const rawDataUrl = canvas.toDataURL(mime, 0.94);
+            return setDpiInDataUrl(rawDataUrl, getSelectedDpi());
+        }
+
+        // ==========================================
+        // EXPORT 1: SINGLE PHOTO DOWNLOAD
+        // ==========================================
+        function downloadSinglePhoto(id) {
+            const photo = photos.find(p => p.id === id);
+            if (!photo) return;
+
+            const mime = document.getElementById('formatSelect').value;
+            const ext = mime === 'image/png' ? 'png' : 'jpg';
+            const dataUrl = getFormattedPhotoDataUrl(photo);
+
+            const safeName = (photo.caption || photo.name).replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `${safeName}_5x5cm.${ext}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast(`Foto "${photo.name}" (5×5 cm) berhasil diunduh`);
+        }
+
+        // ==========================================
+        // EXPORT 2: DOWNLOAD ALL AS .ZIP
+        // ==========================================
+        async function downloadAllAsZip() {
+            if (photos.length === 0) return;
+
+            const btn = document.getElementById('btnDownloadZip');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>Memproses ZIP...</span>`;
+            lucide.createIcons();
+
+            try {
+                const zip = new JSZip();
+                const folder = zip.folder("Lampiran_Foto_5x5cm");
+                const mime = document.getElementById('formatSelect').value;
+                const ext = mime === 'image/png' ? 'png' : 'jpg';
+
+                photos.forEach((photo, idx) => {
+                    const dataUrl = getFormattedPhotoDataUrl(photo);
+                    const base64Data = dataUrl.split(',')[1];
+                    const numPrefix = String(idx + 1).padStart(2, '0');
+                    const safeTitle = (photo.name || `Foto_${idx + 1}`).replace(/[^a-zA-Z0-9_\-]/g, '_');
+                    folder.file(`${numPrefix}_${safeTitle}_5x5cm.${ext}`, base64Data, { base64: true });
+                });
+
+                const blob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Lampiran_Foto_5x5cm_${photos.length}_Foto.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast(`${photos.length} foto ukuran 5×5 cm berhasil diunduh dalam file .ZIP!`);
+            } catch (err) {
+                console.error(err);
+                showToast('Terjadi kendala saat membuat file ZIP.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                lucide.createIcons();
+            }
+        }
+
+        // ==========================================
+        // EXPORT 3: DOWNLOAD MICROSOFT WORD (.DOC) TABLE
+        // With strict 5cm x 5cm image dimensions
+        // ==========================================
+        function downloadWordLampiran() {
+            if (photos.length === 0) return;
+
+            const cols = parseInt(document.getElementById('wordColumnsSelect').value, 10) || 3;
+            // In Word HTML/VML, 5 cm = 141.73 points = 189 pixels at 96 DPI
+            const wordPxSize = 189;
+
+            let tableRowsHtml = '';
+
+            if (cols === 1) {
+                // 1 Photo per row with Caption on the right column
+                photos.forEach((photo, i) => {
+                    const dataUrl = getFormattedPhotoDataUrl(photo);
+                    tableRowsHtml += `
+                        <tr>
+                            <td style="width:5.5cm; padding:8pt; border:1pt solid #cbd5e1; text-align:center; vertical-align:middle;">
+                                <img src="${dataUrl}" width="${wordPxSize}" height="${wordPxSize}" style="width:5.0cm; height:5.0cm; display:block; margin:0 auto;" />
+                            </td>
+                            <td style="padding:10pt; border:1pt solid #cbd5e1; vertical-align:middle; font-family:Arial, sans-serif; font-size:10pt;">
+                                <strong>${escapeHtml(photo.caption || `Gambar ${i + 1}`)}</strong>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                // Grid of 2 or 3 columns per row
+                for (let i = 0; i < photos.length; i += cols) {
+                    let cellsHtml = '';
+                    for (let c = 0; c < cols; c++) {
+                        const photo = photos[i + c];
+                        if (photo) {
+                            const dataUrl = getFormattedPhotoDataUrl(photo);
+                            cellsHtml += `
+                                <td style="padding:8pt; border:1pt solid #cbd5e1; text-align:center; vertical-align:top; width:${Math.floor(100 / cols)}%;">
+                                    <div style="text-align:center; margin-bottom:6pt;">
+                                        <img src="${dataUrl}" width="${wordPxSize}" height="${wordPxSize}" style="width:5.0cm; height:5.0cm;" />
+                                    </div>
+                                    <div style="font-family:Arial, sans-serif; font-size:9.5pt; color:#1e293b; text-align:center;">
+                                        ${escapeHtml(photo.caption || '')}
+                                    </div>
+                                </td>
+                            `;
+                        } else {
+                            cellsHtml += `<td style="padding:8pt; border:1pt solid #cbd5e1;">&nbsp;</td>`;
+                        }
+                    }
+                    tableRowsHtml += `<tr>${cellsHtml}</tr>`;
+                }
+            }
+
+            const wordHtml = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+                      xmlns:w='urn:schemas-microsoft-com:office:word' 
+                      xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Lampiran Dokumentasi Foto 5x5 cm</title>
+                    <style>
+                        @page {
+                            size: 21.0cm 29.7cm;
+                            margin: 2.0cm 2.0cm 2.0cm 2.0cm;
+                        }
+                        body {
+                            font-family: Arial, sans-serif;
+                            font-size: 11pt;
+                        }
+                        table {
+                            border-collapse: collapse;
+                            width: 100%;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="text-align:center; font-size:13pt; margin-bottom:14pt; text-transform:uppercase;">
+                        LAMPIRAN DOKUMENTASI FOTO (5 × 5 CM)
+                    </h2>
+                    <table>
+                        ${tableRowsHtml}
+                    </table>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Tabel_Lampiran_Foto_5x5cm.doc`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast('Dokumen Tabel Lampiran Word (.doc) ukuran 5×5 cm berhasil diunduh!');
+        }
+
+        // ==========================================
+        // EXPORT 4: PRINT / SAVE AS PDF (EXACT 5x5 CM ON A4)
+        // ==========================================
+        function printLampiranA4() {
+            if (photos.length === 0) return;
+
+            const printContainer = document.getElementById('printGridContainer');
+            printContainer.innerHTML = '';
+
+            photos.forEach((photo) => {
+                const dataUrl = getFormattedPhotoDataUrl(photo);
+                const item = document.createElement('div');
+                item.className = 'print-card flex flex-col items-center border border-slate-300 p-2 rounded';
+                item.style.width = '5.5cm';
+
+                item.innerHTML = `
+                    <img src="${dataUrl}" class="print-photo-box" style="width:5cm; height:5cm; display:block;" />
+                    <div style="font-size:9pt; text-align:center; margin-top:4pt; word-wrap:break-word; max-width:5cm;">
+                        ${escapeHtml(photo.caption || '')}
+                    </div>
+                `;
+                printContainer.appendChild(item);
+            });
+
+            setTimeout(() => {
+                window.print();
+            }, 150);
+        }
+
+        // ==========================================
+        // UTILITY FUNCTIONS
+        // ==========================================
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        let toastTimeout = null;
+        function showToast(msg) {
+            const box = document.getElementById('toastBox');
+            const text = document.getElementById('toastMessage');
+            text.textContent = msg;
+            box.classList.remove('hidden');
+
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                box.classList.add('hidden');
+            }, 3200);
+        }
+    </script>
+</body>
+</html>
