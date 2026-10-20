@@ -1,3 +1,5 @@
+Generator Lampiran Foto 5x5 cm
+
 Ringkasan Fitur yang Sudah Dibuat:
 Open File & Pilih Banyak Gambar Sekaligus: Tersedia tombol Open File (Pilih Banyak Foto) serta area drag & drop untuk memasukkan banyak gambar dalam sekali pilih.
 
